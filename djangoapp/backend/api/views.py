@@ -139,3 +139,42 @@ def update_progress_status(request):
         return Response({"message": "Cập nhật trạng thái thành công!"})
     except ProgressLog.DoesNotExist:
         return Response({"error": "Không tìm thấy bản ghi"}, status=404)
+from rest_framework.decorators import api_view, permission_classes
+from rest_framework.permissions import IsAuthenticated, AllowAny
+from rest_framework.response import Response
+from rest_framework import status
+from django.contrib.auth.models import User
+
+@api_view(["POST"])
+@permission_classes([AllowAny])
+def register(request):
+    """
+    Body JSON:
+    {
+      "username": "alice",
+      "password": "12345678",
+      "email": "a@b.com"
+    }
+    """
+    username = request.data.get("username")
+    password = request.data.get("password")
+    email = request.data.get("email", "")
+
+    if not username or not password:
+        return Response({"error": "Thiếu username hoặc password"}, status=400)
+
+    if User.objects.filter(username=username).exists():
+        return Response({"error": "Username đã tồn tại"}, status=400)
+
+    user = User.objects.create_user(username=username, email=email, password=password)
+    return Response({"message": "Đăng ký thành công"}, status=201)
+
+@api_view(["GET"])
+@permission_classes([IsAuthenticated])
+def me(request):
+    user = request.user
+    return Response({
+        "id": user.id,
+        "username": user.username,
+        "email": user.email,
+    })
