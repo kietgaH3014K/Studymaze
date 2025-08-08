@@ -1,21 +1,27 @@
+# views.py
 from openai import OpenAI
-from rest_framework.decorators import api_view
+from rest_framework.decorators import api_view, permission_classes
+from rest_framework.permissions import AllowAny
 from rest_framework.response import Response
 from rest_framework import status
+from django.views.decorators.csrf import csrf_exempt
 from .models import ProgressLog
 from .serializers import ProgressLogSerializer
 from django.contrib.auth.models import User
 import re
 
-# ✅ GPT client cấu hình với DeepInfra
 openai = OpenAI(
-    api_key="rt4TcoQRkgGx6YAlEPArqiVKJd1lPAxx",  
+    api_key="rt4TcoQRkgGx6YAlEPArqiVKJd1lPAxx",  # ⚠️ nên chuyển sang biến môi trường
     base_url="https://api.deepinfra.com/v1/openai"
 )
 
-
+@csrf_exempt
 @api_view(['POST'])
+@permission_classes([AllowAny])
 def generate_learning_path(request):
+    # Debug xem body có vào không
+    # print(">>>> REQUEST DATA:", request.data)
+
     data = request.data
     class_level = data.get('class_level')
     subject = data.get('subject')
@@ -74,8 +80,8 @@ Không thêm lời mở đầu hay kết luận. Trả đúng format trên.
 
     gpt_text_vi = response.choices[0].message.content.strip()
 
-    # ✅ Parse nội dung từ GPT
-    plan = {}  # {day_number: task_title, ...}
+    # Parse từng dòng Ngày N:
+    plan = {}
     for line in gpt_text_vi.split('\n'):
         match = re.match(r"Ngày\s+(\d+):\s*(.+)", line.strip())
         if match:
@@ -86,13 +92,11 @@ Không thêm lời mở đầu hay kết luận. Trả đúng format trên.
     if not plan:
         return Response({'error': 'Không thể phân tích nội dung từ GPT.'}, status=500)
 
-    # ✅ Tìm hoặc tạo user mặc định
     user, _ = User.objects.get_or_create(username='default_user')
 
-    # ✅ Xóa lịch cũ cùng môn học để tránh chồng lặp
+    # xóa lịch cũ cùng môn học để tránh chồng lặp
     ProgressLog.objects.filter(user=user, subject=subject).delete()
 
-    # ✅ Lưu dữ liệu vào DB
     for day_number, task in plan.items():
         week = (day_number - 1) // 7 + 1
         ProgressLog.objects.create(
@@ -113,18 +117,19 @@ Không thêm lời mở đầu hay kết luận. Trả đúng format trên.
 
 
 @api_view(['GET'])
+@permission_classes([AllowAny])
 def get_progress_list(request):
     subject = request.query_params.get('subject')
     logs = ProgressLog.objects.all().order_by('week', 'day_number')
-
     if subject:
         logs = logs.filter(subject=subject)
-
     serializer = ProgressLogSerializer(logs, many=True)
     return Response(serializer.data)
 
 
+@csrf_exempt
 @api_view(['POST'])
+@permission_classes([AllowAny])  # nếu không yêu cầu đăng nhập
 def update_progress_status(request):
     log_id = request.data.get('id')
     new_status = request.data.get('status')
