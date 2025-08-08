@@ -12,6 +12,11 @@ export default function Footer() {
         <p className="newsletter-sub">
           Bạn có thể hủy đăng ký bất cứ lúc nào.
         </p>
+        <div className="newsletter-form">
+          <input type="email" placeholder="Your email" />
+          <button>Subscribe</button>
+        </div>
+      </div>
 
       <div className="footer-columns">
         <div className="footer-column">
