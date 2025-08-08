@@ -1,0 +1,52 @@
+.dashboard-hero {
+  position: relative;
+  text-align: center;
+  overflow: hidden;
+  padding-bottom: 50px;
+}
+
+/* Ảnh nền mờ */
+.hero-background {
+  width: 100%;
+  height: auto;
+  opacity: 0.1;
+  display: block;
+}
+
+/* Chữ nằm giữa ảnh */
+.hero-content {
+  position: absolute;
+  top: 30%;
+  left: 50%;
+  transform: translate(-50%, -30%);
+  color: #815C32;
+  z-index: 2;
+}
+
+.hero-content h1 {
+  font-size: 64px;
+  font-weight: bold;
+  margin: 0;
+}
+
+.hero-content p {
+  font-size: 24px;
+  margin: 10px 0 0;
+  line-height: 1.5;
+}
+
+/* Phần sau ảnh nền */
+.after-image {
+  margin-top: 400px; /* Đẩy phần này xuống dưới ảnh */
+}
+
+.after-image h2 {
+  font-size: 28px;
+  font-weight: bold;
+  color: #333;
+}
+
+.after-image p {
+  font-size: 18px;
+  color: #444;
+}

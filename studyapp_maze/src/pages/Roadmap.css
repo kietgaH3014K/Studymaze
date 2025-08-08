@@ -1,0 +1,128 @@
+/* ===== PHẦN 1: ẢNH NỀN & TIÊU ĐỀ ===== */
+.roadmap-hero {
+  position: relative;
+  text-align: center;
+  overflow: hidden;
+  padding-bottom: 50px;
+
+}
+
+/* Ảnh nền mờ */
+.hero-background {
+  width: 100%;
+  height: auto;
+  opacity: 0.1;
+  display: block;
+}
+
+/* Chữ nằm giữa ảnh */
+.hero-content {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  color: #815C32;
+  z-index: 2;
+}
+
+.hero-content h1 {
+  font-size: 64px;
+  font-weight: bold;
+  margin: 0;
+}
+
+.hero-content p {
+  font-size: 24px;
+  margin: 10px 0 0;
+  line-height: 1.5;
+}
+
+/* ===== PHẦN 2: SAU ẢNH NỀN (LỘ TRÌNH) ===== */
+.after-image {
+  margin-top: 400px;
+  padding: 40px 20px;
+  background-color: #f9f9f9;
+  color: #333;
+  text-align: left;
+}
+
+.after-image h2 {
+  font-size: 28px;
+  font-weight: bold;
+  color: #333;
+  margin-bottom: 20px;
+}
+
+.after-image p2 {
+  font-size: 18px;
+  color: #444;
+}
+
+/* ===== PHẦN 3: LỘ TRÌNH HỌC ===== */
+.learning-plan-container {
+  margin-top: 30px;
+  max-width: 800px;
+  margin-left: auto;
+  margin-right: auto;
+}
+
+/* Tiến độ */
+.progress-bar {
+  background-color: #e0e0e0;
+  height: 20px;
+  border-radius: 10px;
+  margin-bottom: 20px;
+  overflow: hidden;
+}
+
+.progress-fill {
+  background-color: #4caf50;
+  height: 100%;
+  transition: width 0.3s ease-in-out;
+}
+
+/* Item mỗi ngày */
+.plan-item {
+  background-color: #ffffff;
+  border: 1px solid #ccc;
+  padding: 20px;
+  margin-bottom: 25px;
+  border-radius: 10px;
+  box-shadow: 0 2px 5px rgba(0,0,0,0.05);
+}
+
+.plan-item h3 {
+  margin: 0 0 10px;
+  font-size: 20px;
+}
+
+.plan-item p {
+  margin: 5px 0;
+}
+
+/* Nút trạng thái */
+.status-button {
+  padding: 8px 16px;
+  border: none;
+  border-radius: 6px;
+  font-weight: bold;
+  cursor: pointer;
+  font-size: 14px;
+  margin-top: 10px;
+}
+
+.status-button.pending {
+  background-color: #f0ad4e;
+  color: white;
+}
+
+.status-button.done {
+  background-color: #5cb85c;
+  color: white;
+}
+
+/* Link tài liệu */
+.plan-item a {
+  color: #007bff;
+  text-decoration: underline;
+}
