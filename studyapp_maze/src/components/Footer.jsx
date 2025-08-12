@@ -29,7 +29,7 @@ export default function Footer() {
           <h4>Liên hệ với chúng tôi</h4>
           <p> Sđt: 0778001899</p>
           <p>Giúp đỡ</p>
-          <p>Điểm đến</p>
+          <p>Điểm đến: THPT Nguyễn An Ninh</p>
         </div>
         <div className="footer-column">
           <h4>Phương tiện truyền thông</h4>

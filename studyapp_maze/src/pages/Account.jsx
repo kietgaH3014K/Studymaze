@@ -1,10 +1,11 @@
 import React, { useState } from "react";
 import { registerUser, loginUser } from "../api/auth";
+import './Account.css';
 
 const AccountPage = () => {
-  const [isLoginMode, setIsLoginMode] = useState(true);
   const [form, setForm] = useState({ username: "", password: "", email: "" });
   const [message, setMessage] = useState("");
+  const [isLoginMode, setIsLoginMode] = useState(true); // Vẫn cho phép chuyển đổi chế độ
 
   const handleChange = (e) => {
     setForm({ ...form, [e.target.name]: e.target.value });
@@ -15,29 +16,35 @@ const AccountPage = () => {
     setMessage("");
 
     try {
-      if (isLoginMode) {
-        const res = await loginUser({
-          username: form.username,
-          password: form.password,
-        });
+      // 1. Thử đăng nhập trước
+      const res = await loginUser({
+        username: form.username,
+        password: form.password,
+      });
 
-        if (res.access) {
-          localStorage.setItem("access_token", res.access);
-          setMessage("Đăng nhập thành công ✅");
-        } else {
-          setMessage("Sai tài khoản hoặc mật khẩu ❌");
-        }
+      if (res.access) {
+        localStorage.setItem("access_token", res.access);
+        localStorage.setItem("refresh_token", res.refresh);
+        setMessage("Đăng nhập thành công ✅");
       } else {
+        setMessage("Sai tài khoản hoặc mật khẩu ❌");
+      }
+    } catch (errorLogin) {
+      // 2. Nếu thất bại, thử đăng ký
+      try {
         const res = await registerUser(form);
         if (res.message) {
-          setMessage("Đăng ký thành công 🎉");
+          setMessage("Đăng ký thành công 🎉. Vui lòng đăng nhập.");
           setIsLoginMode(true); // chuyển sang login
         } else {
           setMessage(res.error || "Lỗi đăng ký");
         }
+      } catch (errorRegister) {
+        setMessage(
+          errorRegister.response?.data?.error ||
+          "Không thể đăng ký. Tài khoản có thể đã tồn tại ❌"
+        );
       }
-    } catch (error) {
-      setMessage("Lỗi kết nối server");
     }
   };
 
@@ -68,6 +75,7 @@ const AccountPage = () => {
                 required
               />
 
+              {/* Chỉ hiện email khi đang ở chế độ đăng ký (dù không bắt buộc) */}
               {!isLoginMode && (
                 <>
                   <label>Email</label>
@@ -80,7 +88,7 @@ const AccountPage = () => {
                 </>
               )}
 
-              <button type="submit">{isLoginMode ? "Đăng nhập" : "Đăng ký"}</button>
+              <button type="submit">Đăng nhập / Đăng ký</button>
             </form>
 
             <p style={{ marginTop: "1rem", color: "red" }}>{message}</p>

@@ -1,19 +1,13 @@
-const API_BASE = "http://localhost:8000"; // hoặc domain backend
+import axios from "axios";
 
-export async function registerUser(data) {
-  const res = await fetch(`${API_BASE}/register/`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(data),
-  });
-  return await res.json();
-}
+const API_URL = "http://localhost:8000/api"; // Đổi nếu cần
 
-export async function loginUser(data) {
-  const res = await fetch(`${API_BASE}/api/token/`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(data),
-  });
-  return await res.json();
-}
+export const registerUser = async (userData) => {
+  const res = await axios.post(`${API_URL}/register/`, userData);
+  return res.data;
+};
+
+export const loginUser = async (credentials) => {
+  const res = await axios.post(`${API_URL}/login/`, credentials);
+  return res.data;
+};

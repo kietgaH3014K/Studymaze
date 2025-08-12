@@ -43,10 +43,44 @@
 .after-image h2 {
   font-size: 28px;
   font-weight: bold;
-  color: #333;
+  color: #FEFBF6;
 }
 
 .after-image p {
   font-size: 18px;
-  color: #444;
+  color: #FEFBF6;
+}
+
+/* ====== Thêm phần khung hiển thị nhiều hình ====== */
+.card-container {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 40px;
+  margin-top: 60px;
+}
+
+.card-frame {
+  background-color: #FEFBF6;
+  border-radius: 30px;
+  box-shadow: 4px 4px 8px rgba(0,0,0,0.2);
+  width: 480px;  /* Kích thước chuẩn */
+  height: 640px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 20px;
+}
+
+.card-frame img {
+  width: 100%;
+  height: auto;
+  border-radius: 20px;
+}
+
+.card-title {
+  margin-top: 16px;
+  font-size: 18px;
+  color: #333;
+  text-align: center;
 }
