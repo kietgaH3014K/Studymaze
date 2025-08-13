@@ -5,7 +5,7 @@ export default function Dashboard() {
   const cards = [
     { image: "/image/chatAI.png", title: "Chat với AI" },
     { image: "/image/danhgia.jpg", title: "Phiếu đánh giá học tập" },
-    { image: "/images/other.png", title: "Khung khác" },
+    { image: "/image/lichhoc.jpg", title: "lịch học" },
   ];
 
   return (
