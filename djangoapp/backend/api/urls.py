@@ -8,15 +8,29 @@
 #     path('progress/<int:pk>/update/', update_progress_status, name='update_progress_status'),
     
 # ]
+# from django.urls import path
+# from .views import (
+#     generate_learning_path, get_progress_list, update_progress_status,
+#     register, me
+# )
+# from rest_framework_simplejwt.views import TokenObtainPairView, TokenRefreshView
 
 from django.urls import path
-from .views import generate_learning_path, get_progress_list, update_progress_status
+from .views import (
+    generate_learning_path, get_progress_list, update_progress_status,
+    register, login_view, me, get_csrf_token,logout_view,          # <‑‑ import view mới
+
+)
 
 urlpatterns = [
-    path('generate-learning-path/', generate_learning_path),  # POST
-    path('progress/', get_progress_list),                     # GET
-    path('progress/update/', update_progress_status),         # POST
+    path('generate-learning-path/', generate_learning_path),
+    path('progress/', get_progress_list),
+    path('progress/update/', update_progress_status),
+    path('register/', register),
+    path('login/', login_view),
+    path('me/', me),
+    path('csrf/', get_csrf_token), 
+    path('logout/', logout_view), 
 ]
-
 
 

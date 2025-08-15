@@ -1,36 +1,89 @@
-# views.py
-from openai import OpenAI
+# api/views.py
+import os
+import re
+from django.db import transaction
+from django.views.decorators.csrf import csrf_exempt
+from django.contrib.auth import authenticate, login
+from django.contrib.auth.models import User
+
 from rest_framework.decorators import api_view, permission_classes
-from rest_framework.permissions import AllowAny
+from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
 from rest_framework import status
-from django.views.decorators.csrf import csrf_exempt
-from .models import ProgressLog
-from .serializers import ProgressLogSerializer
-from django.contrib.auth.models import User
-import re
+from django.middleware import csrf
+from django.contrib.auth import logout
 
-openai = OpenAI(
-    api_key="rt4TcoQRkgGx6YAlEPArqiVKJd1lPAxx",  # ⚠️ nên chuyển sang biến môi trường
-    base_url="https://api.deepinfra.com/v1/openai"
+
+
+from openai import OpenAI
+
+from .models import ProgressLog
+from .serializers import (
+    ProgressLogSerializer,
+    RegisterSerializer,
+    UserSerializer,
 )
 
-@csrf_exempt
-@api_view(['POST'])
-@permission_classes([AllowAny])
-def generate_learning_path(request):
-    # Debug xem body có vào không
-    # print(">>>> REQUEST DATA:", request.data)
+# =========================
+# OpenAI (DeepInfra) client
+# =========================
+DEEPINFRA_API_KEY = os.environ.get("DEEPINFRA_API_KEY", "rt4TcoQRkgGx6YAlEPArqiVKJd1lPAxx")
+openai = OpenAI(
+    api_key=DEEPINFRA_API_KEY,
+    base_url="https://api.deepinfra.com/v1/openai",
+)
 
+# =========================
+# Helpers
+# =========================
+def _get_current_user(request):
+    """
+    Use the signed-in user if available; otherwise fall back to 'default_user'
+    for demo/testing so the app can still function without auth.
+    """
+    if getattr(request, "user", None) and request.user.is_authenticated:
+        return request.user
+    user, _ = User.objects.get_or_create(username="default_user")
+    return user
+
+
+def _normalize_status(value: str) -> str:
+    """
+    Normalize arbitrary status strings into 'pending' or 'done'.
+    (Support legacy 'not_done' -> 'pending')
+    """
+    if not value:
+        return "pending"
+    v = value.strip().lower()
+    return "done" if v == "done" else "pending"
+
+
+# =========================================
+# Generate learning path (store per-user)
+# =========================================
+@csrf_exempt
+@api_view(["POST"])
+@permission_classes([AllowAny])  # switch to IsAuthenticated when auth is enforced
+def generate_learning_path(request):
+    """
+    Body JSON:
+    {
+      "class_level": "10",
+      "subject": "Tin học",
+      "study_time": "1 giờ",
+      "goal": "Nắm vững Python cơ bản"
+    }
+    """
     data = request.data
-    class_level = data.get('class_level')
-    subject = data.get('subject')
-    study_time = data.get('study_time')
-    goal = data.get('goal')
+    class_level = (data.get("class_level") or "").strip()
+    subject = (data.get("subject") or "").strip()
+    study_time = (data.get("study_time") or "").strip()
+    goal = (data.get("goal") or "").strip()
 
     if not all([class_level, subject, study_time, goal]):
-        return Response({'error': 'Thiếu thông tin bắt buộc.'}, status=status.HTTP_400_BAD_REQUEST)
+        return Response({"error": "Thiếu thông tin bắt buộc."}, status=status.HTTP_400_BAD_REQUEST)
 
+    # Prompt
     messages = [
         {
             "role": "system",
@@ -63,84 +116,190 @@ Ngày 22: ...
 ...
 Ngày 28: ...
 
-Chú ý: Mỗi dòng là 1 ngày học, có mô tả bài học và link web hữu ích miễn phí cho học sinh. 
+Chú ý: Mỗi dòng là 1 ngày học, có mô tả bài học và link web hữu ích miễn phí cho học sinh.
 Không thêm lời mở đầu hay kết luận. Trả đúng format trên.
 """
         }
     ]
 
+    # Call LLM
     try:
-        response = openai.chat.completions.create(
+        resp = openai.chat.completions.create(
             model="openchat/openchat_3.5",
             messages=messages,
-            stream=False
+            stream=False,
         )
     except Exception as e:
-        return Response({'error': 'Lỗi GPT', 'details': str(e)}, status=500)
+        return Response({"error": "Lỗi GPT", "details": str(e)}, status=500)
 
-    gpt_text_vi = response.choices[0].message.content.strip()
+    gpt_text_vi = (resp.choices[0].message.content or "").strip()
 
-    # Parse từng dòng Ngày N:
-    plan = {}
-    for line in gpt_text_vi.split('\n'):
-        match = re.match(r"Ngày\s+(\d+):\s*(.+)", line.strip())
-        if match:
-            day_number = int(match.group(1))
-            task_full = match.group(2).strip()
-            plan[day_number] = task_full
+    # Parse "Ngày N: ..."
+    # Accept: "Ngày 1:", "Ngày 1 -", "Ngày 1 –", "Ngày 1 —"
+    day_line_regex = re.compile(r"^Ngày\s+(\d{1,2})\s*[:\-–—]\s*(.+)$", re.IGNORECASE)
+    plan = {}  # { int(day_number): str(task_text) }
+    for raw in gpt_text_vi.splitlines():
+        line = raw.strip()
+        if not line:
+            continue
+        m = day_line_regex.match(line)
+        if not m:
+            continue
+        day_num = int(m.group(1))
+        if 1 <= day_num <= 28:
+            plan[day_num] = m.group(2).strip()
 
     if not plan:
-        return Response({'error': 'Không thể phân tích nội dung từ GPT.'}, status=500)
+        return Response({"error": "Không thể phân tích nội dung từ GPT."}, status=500)
 
-    user, _ = User.objects.get_or_create(username='default_user')
+    # Save to DB (per user & subject)
+    user = _get_current_user(request)
+    with transaction.atomic():
+        ProgressLog.objects.filter(user=user, subject=subject).delete()
+        objs = []
+        for day_number in sorted(plan.keys()):
+            task_text = str(plan[day_number])
+            week = (day_number - 1) // 7 + 1
+            objs.append(ProgressLog(
+                user=user,
+                subject=subject,
+                week=week,
+                day_number=day_number,
+                task_title=task_text,  # includes: "... | Link tài liệu: https://..."
+                status="pending",
+            ))
+        ProgressLog.objects.bulk_create(objs)
 
-    # xóa lịch cũ cùng môn học để tránh chồng lặp
-    ProgressLog.objects.filter(user=user, subject=subject).delete()
-
-    for day_number, task in plan.items():
-        week = (day_number - 1) // 7 + 1
-        ProgressLog.objects.create(
-            user=user,
-            subject=subject,
-            week=week,
-            day_number=day_number,
-            task_title=task,
-            status='not_done'
-        )
-
-    return Response({
-        "message": "✅ Đã tạo lộ trình học!",
-        "subject": subject,
-        "plan": plan,
-        "raw_gpt_output": gpt_text_vi
-    })
+    logs = ProgressLog.objects.filter(user=user, subject=subject).order_by("week", "day_number")
+    return Response(
+        {
+            "message": "✅ Đã tạo lộ trình học!",
+            "subject": subject,
+            "items": ProgressLogSerializer(logs, many=True).data,
+            "raw_gpt_output": gpt_text_vi,
+        },
+        status=201,
+    )
 
 
-@api_view(['GET'])
-@permission_classes([AllowAny])
+# =========================================
+# Get progress list (filter by subject)
+# =========================================
+@api_view(["GET"])
+@permission_classes([AllowAny])  # switch to IsAuthenticated when auth is enforced
 def get_progress_list(request):
-    subject = request.query_params.get('subject')
-    logs = ProgressLog.objects.all().order_by('week', 'day_number')
+    subject = request.query_params.get("subject")
+    user = _get_current_user(request)
+
+    qs = ProgressLog.objects.filter(user=user).order_by("subject", "week", "day_number")
     if subject:
-        logs = logs.filter(subject=subject)
-    serializer = ProgressLogSerializer(logs, many=True)
-    return Response(serializer.data)
+        qs = qs.filter(subject=subject)
+
+    return Response(ProgressLogSerializer(qs, many=True).data, status=200)
 
 
+# =========================================
+# Update progress status
+# =========================================
 @csrf_exempt
-@api_view(['POST'])
-@permission_classes([AllowAny])  # nếu không yêu cầu đăng nhập
+@api_view(["POST"])
+@permission_classes([AllowAny])  # switch to IsAuthenticated and enforce ownership if needed
 def update_progress_status(request):
-    log_id = request.data.get('id')
-    new_status = request.data.get('status')
+    """
+    Body:
+      { "id": <int>, "status": "done" | "pending" | "not_done" }
+    """
+    log_id = request.data.get("id")
+    new_status_raw = request.data.get("status")
 
-    if not log_id or not new_status:
-        return Response({"error": "Thiếu thông tin 'id' hoặc 'status'"}, status=400)
+    if not log_id or new_status_raw is None:
+        return Response({"error": "Thiếu thông tin 'id' hoặc 'status'."}, status=400)
 
     try:
         log = ProgressLog.objects.get(id=log_id)
-        log.status = new_status
-        log.save()
-        return Response({"message": "Cập nhật trạng thái thành công!"})
     except ProgressLog.DoesNotExist:
         return Response({"error": "Không tìm thấy bản ghi"}, status=404)
+
+    # Optional: enforce owner
+    # current_user = _get_current_user(request)
+    # if log.user_id != current_user.id:
+    #     return Response({"error": "Không có quyền cập nhật bản ghi này."}, status=403)
+
+    log.status = _normalize_status(new_status_raw)
+    log.save(update_fields=["status"])
+
+    return Response(
+        {"message": "Cập nhật trạng thái thành công!", "item": ProgressLogSerializer(log).data},
+        status=200,
+    )
+
+
+# =========================================
+# Auth endpoints (Register / Login / Me)
+# =========================================
+@csrf_exempt
+@api_view(["POST"])
+@permission_classes([AllowAny])
+def register(request):
+    """
+    Body: { "username": "...", "email": "...", "password": "...", "password2": "...", "first_name": "...", "last_name": "..." }
+    """
+    serializer = RegisterSerializer(data=request.data)
+    if serializer.is_valid():
+        user = serializer.save()
+        return Response(
+            {"message": "Đăng ký thành công!", "user": UserSerializer(user).data},
+            status=201,
+        )
+    return Response(serializer.errors, status=400)
+
+
+# api/views.py
+@csrf_exempt
+@api_view(["POST"])
+@permission_classes([AllowAny])
+def login_view(request):
+    username = request.data.get("username")
+    password = request.data.get("password")
+    user = authenticate(request, username=username, password=password)
+    if user is None:
+        return Response({"detail": "Sai thông tin đăng nhập"}, status=400)
+
+    login(request, user)
+
+    # Xóa dữ liệu demo default_user
+    ProgressLog.objects.filter(user__username="default_user").delete()
+
+    return Response({"username": user.username}, status=200)
+
+
+@api_view(["GET"])
+@permission_classes([IsAuthenticated])
+def me(request):
+    """Return current user info (requires Authorization or session)."""
+    return Response(UserSerializer(request.user).data, status=200)
+
+@api_view(["GET"])
+@permission_classes([AllowAny])
+def get_csrf_token(request):
+    """
+    Trả về JSON: {"csrfToken": "<value>"} và đặt cookie csrftoken.
+    """
+    token = csrf.get_token(request)   # tạo (hoặc lấy) token và set cookie
+    return Response({"csrfToken": token})
+
+
+
+@api_view(["POST"])
+@permission_classes([IsAuthenticated])          # chỉ người đã đăng nhập mới được gọi
+def logout_view(request):
+    """
+    Đánh dấu session đã hoàn tất và xóa cookie `sessionid`.
+    Nếu bạn đang dùng CSRF, client phải gửi header X‑CSRFToken
+    (có thể lấy từ cookie `csrftoken`).
+    """
+    logout(request)               # Django sẽ xóa session & cookie tương ứng
+    return Response(
+        {"detail": "Bạn đã thoát tài khoản."},
+        status=status.HTTP_200_OK,
+    )
