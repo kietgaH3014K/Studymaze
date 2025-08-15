@@ -6,7 +6,7 @@ export default function Roadmap() {
   const [subject, setSubject] = useState("");
 
   useEffect(() => {
-    fetch("http://localhost:8000/api/progresslog/")
+    fetch("http://localhost:8000/api/progress/")
       .then((res) => res.json())
       .then((data) => {
         setProgressList(data);
